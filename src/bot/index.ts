@@ -14,8 +14,11 @@ export default class Bot extends EventEmitter {
     super();
     this.client = new discord.Client();
     this.client.on('message', (m) => this.onMessage(m));
-    this.client.on('ready', () => this.initClient());
+    this.client.on('ready', () => this.initialiseScripts());
     this.canal.on('ready', () => this.setup());
+    this.canal.on('scriptCreate', (s) => this.runScript(s));
+    this.canal.on('scriptUpdate', (s) => this.updateScript(s));
+    this.canal.on('scriptRemove', (s) => this.removeScript(s));
   }
   public close() {
     this.client.destroy();
@@ -30,21 +33,32 @@ export default class Bot extends EventEmitter {
   private async setup() {
     await this.client.login(this.canal.token as string);
   }
-  private execScript(scriptData: Script): Script {
-    const script = new BotScript(this, scriptData);
+  private runScript(scriptData: BotScript | Script): BotScript {
+    const script = scriptData instanceof BotScript ? scriptData : new BotScript(this, scriptData);
     this.activeScripts.push(script);
-    const scriptExports = script.executeScript();
-    this.importerCache.set(script.name, scriptExports);
+    script.executeScript();
     return script;
   }
+  private async updateScript(scriptData: Script): Promise<BotScript> {
+    const script = this.activeScripts.find((s) => s.id === scriptData.id);
+    if (!script) throw new Error(`Failed to update script ${scriptData.id}: Not running`);
+    await this.stopScript(script.id);
+    script.patch(scriptData);
+    return this.runScript(script);
+  }
   private async stopScript(id: string): Promise<void> {
-    const script = this.activeScripts.find((s) => s.id === id);
+    const scriptIndex = this.activeScripts.findIndex((s) => s.id === id);
+    const script = this.activeScripts[scriptIndex];
     if (!script) throw new ReferenceError(`Can't shutdown script ${id}: it isn't running`);
     await script.shutdown();
+    this.activeScripts.splice(scriptIndex, 1);
   }
-  private initClient() {
+  private async removeScript(script: Partial<Script>): Promise<void> {
+    this.stopScript(script.id as string);
+  }
+  private initialiseScripts() {
     console.log(`🤞 Initializing with ${this.canal.autostartScripts.length} scripts`);
-    this.canal.autostartScripts.forEach((s) => this.execScript(s));
+    this.canal.autostartScripts.forEach((s) => this.runScript(s));
   }
   private onMessage(message: discord.Message): void {
     if (message.author.bot) return;
@@ -52,7 +66,7 @@ export default class Bot extends EventEmitter {
       this.dispatchCommand(message);
     }
   }
-  private async dispatchCommand(rawMessage: discord.Message): Promise<void> {
+  private dispatchCommand(rawMessage: discord.Message): void {
     (rawMessage as ArgedMessage).args = Arguments.parse(rawMessage);
     const message: ArgedMessage = rawMessage as ArgedMessage;
     console.log(`Aaaand the command today is: ${message.args.command}`);

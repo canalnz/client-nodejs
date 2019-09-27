@@ -20,7 +20,7 @@ class CanalConnection extends EventEmitter {
   }
 
   public send(eventName: string, payload?: any) {
-    console.log(`> ${eventName}`);
+    if (eventName !== 'HEARTBEAT') console.log(`> ${eventName}`);
     if (!payload) this.ws.send(this.serialize([eventName]));
     else this.ws.send(this.serialize([eventName, payload]));
   }

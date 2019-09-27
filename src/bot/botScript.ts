@@ -47,6 +47,11 @@ export default class BotScript {
     this.listeners.forEach(({name, listener}) => this.client.removeListener(name, listener));
     this.commands = [];
   }
+  public patch(update: Script) {
+    if (update.name) this.name = update.name;
+    if (update.body) this.body = update.body;
+    if (update.platform) this.platform = update.platform;
+  }
   private makeSandbox() {
     const clientTraps = {
       get: (obj: discord.Client, prop: string): any => {
