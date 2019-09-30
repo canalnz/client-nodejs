@@ -54,7 +54,7 @@ export default class BotScript {
   }
   private makeSandbox() {
     const clientTraps = {
-      get: (obj: discord.Client, prop: string): any => {
+      get: (obj: discord.Client, prop: keyof discord.Client): any => {
         console.log(prop);
         if (prop === 'on') return this.clientOn;
         if (prop === 'token') return '[ SECURE ]';

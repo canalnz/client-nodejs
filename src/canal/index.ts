@@ -3,7 +3,7 @@ import {EventEmitter} from 'events';
 import {Script} from '../types';
 
 const CANAL_API_KEY = process.env.CANAL_API_KEY;
-const GATEWAY_URL = 'ws://localhost:4040/';
+const GATEWAY_URL = 'ws://gateway.canal.pointless.me/';
 
 type OutgoingEventName = 'HEARTBEAT' | 'IDENTIFY' | 'CLIENT_STATUS_UPDATE' | 'SCRIPT_STATUS_UPDATE';
 type IncomingEventName = 'HELLO' | 'READY' | 'SCRIPT_CREATE' | 'SCRIPT_UPDATE' | 'SCRIPT_REMOVE';

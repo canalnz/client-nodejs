@@ -61,8 +61,8 @@ export default class Bot extends EventEmitter {
     this.canal.autostartScripts.forEach((s) => this.runScript(s));
   }
   private onMessage(message: discord.Message): void {
-    if (message.author.bot) return;
-    if (message.mentions.users.has(this.client.user.id)) { // If the bot is mentioned?
+    if (message.author.bot) return; // Bots can't issue commands.
+    if (message.mentions.users.has(this.client.user.id)) { // If the bot is mentioned
       this.dispatchCommand(message);
     }
   }
