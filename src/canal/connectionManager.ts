@@ -58,6 +58,7 @@ export class ConnectionManager extends EventEmitter {
   }
   private onReady(payload: ReadyPayload) {
     this.ready = true;
+    this.ws.resetErrorCount();
     this.send();
     this.emit('ready', payload);
   }

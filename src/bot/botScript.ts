@@ -72,7 +72,7 @@ export default class BotScript {
   private importScript(name: string) {
     return this.bot.importScript(name);
   }
-  private clientOn(name: string, listener: Listener): discord.Client {
+  private clientOn = (name: string, listener: Listener): discord.Client => {
     // Hello, we are now inside the sandbox
     this.listeners.push({name, listener});
     this.client.on(name, listener);

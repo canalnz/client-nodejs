@@ -27,10 +27,12 @@ export default class ReconnectingSocket extends EventEmitter {
     this.ws.on('message', (message) => this.onMessage(message));
     this.ws.on('error', (err) => this.onError(err));
   }
+  public resetErrorCount() {
+    this.reconnectAttempts = 0;
+  }
   public send(d: WebSocket.Data) {
     if (this.ws) this.ws.send(d);
   }
-
   public close(code: number, message: string) {
     this.destroyed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
