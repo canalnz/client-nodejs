@@ -1,9 +1,11 @@
-import CanalConnection from './connection';
 import {EventEmitter} from 'events';
 import {Script} from '../types';
+import {ConnectionManager} from './connectionManager';
 
-const CANAL_API_KEY = process.env.CANAL_API_KEY;
-const GATEWAY_URL = 'ws://gateway.canal.pointless.me/';
+interface CanalClientOpts {
+  apiKey: string;
+  gatewayUrl?: string;
+}
 
 type OutgoingEventName = 'HEARTBEAT' | 'IDENTIFY' | 'CLIENT_STATUS_UPDATE' | 'SCRIPT_STATUS_UPDATE';
 type IncomingEventName = 'HELLO' | 'READY' | 'SCRIPT_CREATE' | 'SCRIPT_UPDATE' | 'SCRIPT_REMOVE';
@@ -20,20 +22,22 @@ function EventHandler(event: IncomingEventName) {
 }
 
 export class Canal extends EventEmitter {
-  public static async connect() {
-    return new Canal(GATEWAY_URL);
-  }
-
   public socketEventHandlers: {[propName: string]: keyof Canal} | undefined;
+  public apiKey: string | null = null;
+  public gatewayUrl: string = 'ws://gateway.canal.asherfoster.com/';
   public token: string | null = null;
   public autostartScripts: Script[] = [];
-  protected connection: CanalConnection;
+  protected connection: ConnectionManager;
 
-  constructor(url: string) {
+  constructor(opts: CanalClientOpts) {
     super();
-    this.connection = new CanalConnection(url);
+    this.apiKey = opts.apiKey;
+    if (opts && opts.gatewayUrl) this.gatewayUrl = opts.gatewayUrl;
+
+
+    this.connection = new ConnectionManager(this);
     // CanalConnection deals with heartbeat
-    this.connection.on('connected', () => console.log('👋 Connected to ' + url));
+    this.connection.on('connected', () => console.log('👋 Connected to ' + this.gatewayUrl));
     this.connection.on('closed', ([code, message]) => {
       throw new Error(`🔥 Connection closed: ${code} -- ${message}`);
     });
@@ -44,22 +48,12 @@ export class Canal extends EventEmitter {
       const handlerName = this.socketEventHandlers && this.socketEventHandlers[eventName];
       if (handlerName) {
         (this[handlerName] as any)(payload);
-      } else throw new TypeError(`🔥 Got event ${eventName} from client, but don't have a handler for it!`);
+      } else throw new TypeError(`🔥 Got event ${eventName} from gateway, but don't have a handler for it!`);
     });
   }
 
-  public close() {
-    this.connection.close();
-  }
-
-  @EventHandler('HELLO')
-  public sendIdentify() {
-    this.connection.send('IDENTIFY', {
-      token: CANAL_API_KEY,
-      client_info: {
-        name: 'Canal-Bot-Nodejs'
-      }
-    });
+  public destroy() {
+    this.connection.destroy();
   }
 
   @EventHandler('READY')
