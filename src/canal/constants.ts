@@ -4,7 +4,7 @@ type Enum<T extends string> = {
 };
 
 export const endpoints = {
-  GATEWAY: 'ws://gateway.canal.asherfoster.com',
+  GATEWAY: 'wss://gateway.canal.nz',
 };
 
 export type ClientState = 'OFFLINE' | 'FAILED' | 'STARTUP' | 'ONLINE' | 'ERROR';
