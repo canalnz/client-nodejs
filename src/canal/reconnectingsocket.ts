@@ -7,6 +7,7 @@ const fatalCloseCodes = [4004];
 export default class ReconnectingSocket extends EventEmitter {
   private destroyed: boolean = false;
   private ws: WebSocket | null = null;
+  private hasConnected: boolean = false;
   // Connection attempts since last successful connection
   private reconnectTimer: NodeJS.Timer | null = null;
   private reconnectAttempts: number = 0;
@@ -28,6 +29,7 @@ export default class ReconnectingSocket extends EventEmitter {
     this.ws.on('error', (err) => this.onError(err));
   }
   public resetErrorCount() {
+    this.hasConnected = true;
     this.reconnectAttempts = 0;
   }
   public send(d: WebSocket.Data) {
@@ -43,22 +45,24 @@ export default class ReconnectingSocket extends EventEmitter {
     this.emit('open'); // Yay, we've connected!
   }
   private onClose(code: number, message: string) {
-    if (this.isFatalCode(code)) {
-      // Let's give up
-      this.emit('close', code, message);
-    } else {
+    if (this.shouldReconnectWithCode(code)) {
       this.reconnect();
+    } else {
+      // Let's give up
+      this.close(code, message); // Already closed, arguments are meaningless
+      this.emit('close', code, message);
     }
   }
   private onMessage(m: WebSocket.Data) {
     this.emit('message', m);
   }
   private onError(e: Error) {
-    if (this.isFatalError(e)) {
-      // Give up
-      this.emit('error', e);
-    } else {
+    if (this.shouldReconnectWithError(e)) {
       this.reconnect();
+    } else {
+      // Give up
+      this.close(1000, 'Beep boop'); // Already closed, arguments are meaningless
+      this.emit('error', e);
     }
   }
 
@@ -69,11 +73,11 @@ export default class ReconnectingSocket extends EventEmitter {
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
-  private isFatalCode(code: number) {
-    return this.reconnectAttempts >= this.maxReconnectAttempts || this.destroyed || fatalCloseCodes.includes(code);
+  private shouldReconnectWithCode(code: number) {
+    return this.reconnectAttempts < this.maxReconnectAttempts && !this.destroyed && this.hasConnected && !fatalCloseCodes.includes(code);
   }
-  private isFatalError(e: Error) {
+  private shouldReconnectWithError(e: Error) {
     // TODO what errors should be fatal?
-    return this.reconnectAttempts >= this.maxReconnectAttempts || this.destroyed;
+    return this.reconnectAttempts < this.maxReconnectAttempts && !this.destroyed && this.hasConnected;
   }
 }

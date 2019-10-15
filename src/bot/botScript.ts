@@ -3,6 +3,7 @@ import {Script} from '../types';
 import {NodeVM, VMScript} from 'vm2';
 import Bot from './index';
 import {ArgedMessage} from './arguments';
+import {scriptStates} from '../canal/constants';
 
 type Listener = (...args: any[]) => void;
 interface RegisteredListener {
@@ -25,6 +26,9 @@ export default class BotScript {
   public listeners: RegisteredListener[] = [];
 
   public exports: any = {};
+  public get isPassive() {
+    return this.commands.length || this.listeners.length;
+  }
 
   private readonly client: discord.Client;
 
@@ -37,10 +41,17 @@ export default class BotScript {
   }
 
   public executeScript(): any {
+    this.bot.canal.setScriptState(this.id, scriptStates.RUNNING);
     const vm = new NodeVM({
       sandbox: this.makeSandbox()
     });
-    const ret = vm.run(new VMScript(this.body)); // VMScript constructor isn't necessary, but Typescript disagrees
+    let ret;
+    try {
+      ret = vm.run(new VMScript(this.body)); // VMScript constructor isn't necessary, but Typescript disagrees
+      this.bot.canal.setScriptState(this.id, this.isPassive ? scriptStates.PASSIVE : scriptStates.STOPPED);
+    } catch (e) {
+      this.bot.canal.setScriptState(this.id, scriptStates.ERROR);
+    }
     return this.exports;
   }
   public async shutdown() {
@@ -55,7 +66,6 @@ export default class BotScript {
   private makeSandbox() {
     const clientTraps = {
       get: (obj: discord.Client, prop: keyof discord.Client): any => {
-        console.log(prop);
         if (prop === 'on') return this.clientOn;
         if (prop === 'token') return '[ SECURE ]';
         else return obj[prop];

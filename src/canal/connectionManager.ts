@@ -29,6 +29,8 @@ export class ConnectionManager extends EventEmitter {
     this.ws = new ReconnectingSocket(this.canal.gatewayUrl);
     this.ws.on('open', () => this.onOpen());
     this.ws.on('reconnecting', () => this.onReconnecting());
+    this.ws.on('close', (c, m) => this.onClose(c, m));
+    this.ws.on('error', (e) => this.onError(e));
     this.ws.on('message', (m) => this.onMessage(m));
   }
 
@@ -70,6 +72,14 @@ export class ConnectionManager extends EventEmitter {
       if (eventName === 'READY') this.onReady(payload);
       this.emit('message', eventName, payload);
     }
+  }
+  private onClose(code: number, message?: string) {
+    this.destroy();
+    this.emit('close', code, message);
+  }
+  private onError(e: Error) {
+    this.destroy();
+    this.emit('error', e);
   }
 
   // Heartbeating

@@ -1,20 +1,19 @@
 import {EventEmitter} from 'events';
 import {Script} from '../types';
 import {ConnectionManager} from './connectionManager';
+import {ClientState, endpoints, EventName, messages, ScriptState} from './constants';
 
 interface CanalClientOpts {
   apiKey: string;
   gatewayUrl?: string;
 }
 
-type OutgoingEventName = 'HEARTBEAT' | 'IDENTIFY' | 'CLIENT_STATUS_UPDATE' | 'SCRIPT_STATUS_UPDATE';
-type IncomingEventName = 'HELLO' | 'READY' | 'SCRIPT_CREATE' | 'SCRIPT_UPDATE' | 'SCRIPT_REMOVE';
 interface ReadyPayload {
   token: string;
   scripts: Script[];
 }
 
-function EventHandler(event: IncomingEventName) {
+function EventHandler(event: EventName) {
   return (target: Canal, propertyKey: keyof Canal) => {
     target.socketEventHandlers = target.socketEventHandlers || {};
     target.socketEventHandlers[event] = propertyKey;
@@ -24,7 +23,7 @@ function EventHandler(event: IncomingEventName) {
 export class Canal extends EventEmitter {
   public socketEventHandlers: {[propName: string]: keyof Canal} | undefined;
   public apiKey: string | null = null;
-  public gatewayUrl: string = 'ws://gateway.canal.asherfoster.com/';
+  public gatewayUrl: string = endpoints.GATEWAY;
   public token: string | null = null;
   public autostartScripts: Script[] = [];
   protected connection: ConnectionManager;
@@ -34,22 +33,23 @@ export class Canal extends EventEmitter {
     this.apiKey = opts.apiKey;
     if (opts && opts.gatewayUrl) this.gatewayUrl = opts.gatewayUrl;
 
-
     this.connection = new ConnectionManager(this);
     // CanalConnection deals with heartbeat
     this.connection.on('connected', () => console.log('👋 Connected to ' + this.gatewayUrl));
-    this.connection.on('closed', ([code, message]) => {
+    this.connection.on('close', (code, message) => {
       throw new Error(`🔥 Connection closed: ${code} -- ${message}`);
     });
     this.connection.on('error', (e) => {
       throw new Error('🔥 Something went wrong with the connection :(\n' + e);
     });
-    this.connection.on('message', (eventName: string, payload: any) => {
-      const handlerName = this.socketEventHandlers && this.socketEventHandlers[eventName];
-      if (handlerName) {
-        (this[handlerName] as any)(payload);
-      } else throw new TypeError(`🔥 Got event ${eventName} from gateway, but don't have a handler for it!`);
-    });
+    this.connection.on('message', (e, p) => this.onEvent(e, p));
+  }
+
+  public setState(state: ClientState, error?: Error) {
+    this.connection.send([messages.CLIENT_STATUS_UPDATE, { state, error }]);
+  }
+  public setScriptState(scriptId: string, state: ScriptState) {
+    this.connection.send([messages.SCRIPT_STATUS_UPDATE, {state, script: scriptId}]);
   }
 
   public destroy() {
@@ -79,6 +79,13 @@ export class Canal extends EventEmitter {
   public async scriptRemove(script: Pick<Script, 'id'>) {
     console.log(`- [Script ${script.id}]: Script removed!`);
     this.emit('scriptRemove', script);
+  }
+
+  private onEvent(eventName: EventName, payload: any) {
+    const handlerName = this.socketEventHandlers && this.socketEventHandlers[eventName];
+    if (handlerName) {
+      (this[handlerName] as any)(payload);
+    } else throw new TypeError(`🔥 Got event ${eventName} from gateway, but don't have a handler for it!`);
   }
 }
 

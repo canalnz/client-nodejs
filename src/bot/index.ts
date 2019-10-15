@@ -4,13 +4,14 @@ import {Script} from '../types';
 import Canal from '../canal';
 import BotScript from './botScript';
 import Arguments, {ArgedMessage} from './arguments';
+import {clientStates} from '../canal/constants';
 
 export default class Bot extends EventEmitter {
   public activeScripts: BotScript[] = [];
   public client: discord.Client;
   private importerCache: Map<string, any> = new Map();
 
-  constructor(private canal: Canal) {
+  constructor(public canal: Canal) {
     super();
     this.client = new discord.Client();
     this.client.on('message', (m) => this.onMessage(m));
@@ -59,6 +60,7 @@ export default class Bot extends EventEmitter {
   private initialiseScripts() {
     console.log(`🤞 Initializing with ${this.canal.autostartScripts.length} scripts`);
     this.canal.autostartScripts.forEach((s) => this.runScript(s));
+    this.canal.setState(clientStates.ONLINE);
   }
   private onMessage(message: discord.Message): void {
     if (message.author.bot) return; // Bots can't issue commands.
@@ -70,7 +72,6 @@ export default class Bot extends EventEmitter {
     (rawMessage as ArgedMessage).args = Arguments.parse(rawMessage);
     const message: ArgedMessage = rawMessage as ArgedMessage;
     console.log(`Aaaand the command today is: ${message.args.command}`);
-    console.log(this.activeScripts);
     this.activeScripts.forEach((script) => {
       script.commands.filter((c) => c.name === message.args.command).forEach((c) => c.handler(message));
     });
