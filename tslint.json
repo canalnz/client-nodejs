@@ -17,6 +17,7 @@
     "no-consecutive-blank-lines": true,
     "variable-name": [true, "check-format", "ban-keywords", "allow-leading-underscore"],
     "trailing-comma": false,
-    "curly": [true, "ignore-same-line"]
+    "curly": [true, "ignore-same-line"],
+    "file-name-casing": [true, "kebab-case"]
   }
 }

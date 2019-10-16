@@ -1,11 +1,12 @@
 import {EventEmitter} from 'events';
 import {Script} from '../types';
-import {ConnectionManager} from './connectionManager';
-import {ClientState, endpoints, EventName, messages, ScriptState} from './constants';
+import {ConnectionManager} from './connection-manager';
+import {ClientState, ConnectionState, connectionStates, endpoints, EventName, messages, ScriptState} from './constants';
 
 interface CanalClientOpts {
   apiKey: string;
-  gatewayUrl?: string;
+  gatewayUrl: string;
+  debug: boolean;
 }
 
 interface ReadyPayload {
@@ -21,9 +22,11 @@ function EventHandler(event: EventName) {
 }
 
 export class Canal extends EventEmitter {
+  public state: ConnectionState;
+  public debugMode: boolean;
   public socketEventHandlers: {[propName: string]: keyof Canal} | undefined;
   public apiKey: string | null = null;
-  public gatewayUrl: string = endpoints.GATEWAY;
+  public gatewayUrl: string;
   public token: string | null = null;
   public autostartScripts: Script[] = [];
   protected connection: ConnectionManager;
@@ -31,16 +34,22 @@ export class Canal extends EventEmitter {
   constructor(opts: CanalClientOpts) {
     super();
     this.apiKey = opts.apiKey;
-    if (opts && opts.gatewayUrl) this.gatewayUrl = opts.gatewayUrl;
+    this.gatewayUrl = opts.gatewayUrl;
+    this.debugMode = opts.debug;
 
+    this.state = connectionStates.CONNECTING;
     this.connection = new ConnectionManager(this);
     // CanalConnection deals with heartbeat
-    this.connection.on('connected', () => console.log('👋 Connected to ' + this.gatewayUrl));
-    this.connection.on('close', (code, message) => {
-      throw new Error(`🔥 Connection closed: ${code} -- ${message}`);
-    });
-    this.connection.on('error', (e) => {
-      throw new Error('🔥 Something went wrong with the connection :(\n' + e);
+    this.connection.on('ready', () => this.debug('Canal', '👋 Connected to ' + this.gatewayUrl));
+    this.connection.on('end', (e) => {
+      this.debug('Canal', 'ConnMan has ended, Canal is currently', this.state);
+      // If this wasn't a clean shutdown, throw an error
+      if (this.state !== connectionStates.DEAD) {
+        this.state = connectionStates.DEAD;
+        throw new Error('🔥 Something went wrong with the connection :(\n' + e);
+      }
+      this.state = connectionStates.DEAD;
+      this.emit('end', e);
     });
     this.connection.on('message', (e, p) => this.onEvent(e, p));
   }
@@ -53,11 +62,15 @@ export class Canal extends EventEmitter {
   }
 
   public destroy() {
-    this.connection.destroy();
+    if (this.state === connectionStates.DEAD) return this.debug('Canal', 'Not cleaning up, already dead');
+    this.state = connectionStates.DEAD;
+    this.debug('Canal', 'Destroying...');
+    this.connection.close(1000, 'Shutting down');
   }
 
   @EventHandler('READY')
   public onReady(payload: ReadyPayload) {
+    this.state = connectionStates.READY;
     this.token = payload.token;
     this.autostartScripts = payload.scripts;
     this.emit('ready');
@@ -65,22 +78,27 @@ export class Canal extends EventEmitter {
 
   @EventHandler('SCRIPT_CREATE')
   public async scriptCreate(script: Script) {
-    console.log(`⚙️ Beep boop, it's time to run the script ${script.name}`);
+    this.debug('Canal', `⚙️ Beep boop, it's time to run the script ${script.name}`);
     this.emit('scriptCreate', script);
   }
 
   @EventHandler('SCRIPT_UPDATE')
   public async scriptUpdate(script: Partial<Script> & {id: string}) {
-    console.log(`- [Script ${script.id}]: Script updated!`);
+    this.debug('Canal', `- [Script ${script.id}]: Script updated!`);
     this.emit('scriptUpdate', script);
   }
 
   @EventHandler('SCRIPT_REMOVE')
   public async scriptRemove(script: Pick<Script, 'id'>) {
-    console.log(`- [Script ${script.id}]: Script removed!`);
+    this.debug('Canal', `- [Script ${script.id}]: Script removed!`);
     this.emit('scriptRemove', script);
   }
 
+  public debug(module: string, ...args: any[]) {
+    if (this.debugMode) {
+      console.debug(`[${new Date().toISOString()} - ${module.substr(0, 10).padEnd(10)}]`, ...args);
+    }
+  }
   private onEvent(eventName: EventName, payload: any) {
     const handlerName = this.socketEventHandlers && this.socketEventHandlers[eventName];
     if (handlerName) {

@@ -2,13 +2,15 @@ import {EventEmitter} from 'events';
 import * as discord from 'discord.js';
 import {Script} from '../types';
 import Canal from '../canal';
-import BotScript from './botScript';
-import Arguments, {ArgedMessage} from './arguments';
 import {clientStates} from '../canal/constants';
+import Storage from './storage';
+import BotScript from './bot-script';
+import Arguments, {ArgedMessage} from './arguments';
 
 export default class Bot extends EventEmitter {
   public activeScripts: BotScript[] = [];
   public client: discord.Client;
+  public storage: Storage | null = null;
   private importerCache: Map<string, any> = new Map();
 
   constructor(public canal: Canal) {
@@ -32,6 +34,7 @@ export default class Bot extends EventEmitter {
     }
   }
   private async setup() {
+    this.storage = await Storage.connect();
     await this.client.login(this.canal.token as string);
   }
   private runScript(scriptData: BotScript | Script): BotScript {
@@ -58,7 +61,7 @@ export default class Bot extends EventEmitter {
     this.stopScript(script.id as string);
   }
   private initialiseScripts() {
-    console.log(`🤞 Initializing with ${this.canal.autostartScripts.length} scripts`);
+    this.canal.debug('Bot', `🤞 Initializing with ${this.canal.autostartScripts.length} scripts`);
     this.canal.autostartScripts.forEach((s) => this.runScript(s));
     this.canal.setState(clientStates.ONLINE);
   }
@@ -71,7 +74,7 @@ export default class Bot extends EventEmitter {
   private dispatchCommand(rawMessage: discord.Message): void {
     (rawMessage as ArgedMessage).args = Arguments.parse(rawMessage);
     const message: ArgedMessage = rawMessage as ArgedMessage;
-    console.log(`Aaaand the command today is: ${message.args.command}`);
+    this.canal.debug('Bot', `Received command: ${message.args.command}`);
     this.activeScripts.forEach((script) => {
       script.commands.filter((c) => c.name === message.args.command).forEach((c) => c.handler(message));
     });

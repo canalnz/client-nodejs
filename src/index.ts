@@ -7,7 +7,8 @@ async function main() {
 
   const canal = new Canal({
     apiKey: config.apiKey,
-    gatewayUrl: config.gatewayUrl
+    gatewayUrl: config.gatewayUrl,
+    debug: config.debug
   });
 
   const bot = new Bot(canal);

@@ -1,10 +1,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import {endpoints} from './canal/constants';
 
 interface Config {
   apiKey: string;
-  gatewayUrl?: string;
+  gatewayUrl: string;
+  debug: boolean;
 }
+const DEFAULTS = {
+  gatewayUrl: endpoints.GATEWAY,
+  debug: false
+};
 
 export async function loadConfig(): Promise<Config> {
   const configPath = path.resolve(process.env.CANAL_CONFIG || 'config.json');
@@ -24,14 +30,25 @@ export async function loadConfig(): Promise<Config> {
       throw new Error('Failed to parse configuration file: ' + configPath);
     }
   }
-
-  config = {
+  const env = filter({
     gatewayUrl: process.env.CANAL_GATEWAY,
     apiKey: process.env.CANAL_API_KEY,
+    debug: process.env.DEBUG || process.env.CANAL_DEBUG
+  });
+
+  config = {
+    ...DEFAULTS,
+    ...env,
     ...config // Config file takes precedence
   };
 
   if (!config.apiKey) throw new Error('An API key is required! Please set CANAL_API_KEY');
 
   return config;
+}
+
+// Removes undefined properties, meaning they won't override in a ...spread
+function filter(obj: {[propName: string]: any}) {
+  Object.keys(obj).forEach((k) => obj[k] === undefined && delete obj[k]);
+  return obj;
 }

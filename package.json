@@ -29,6 +29,7 @@
     "discord.js": "^11.5.1",
     "erlpack": "github:hammerandchisel/erlpack",
     "node-fetch": "^2.6.0",
+    "sqlite": "^3.0.3",
     "vm2": "^3.8.2",
     "ws": "^7.1.0"
   }
