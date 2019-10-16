@@ -1,4 +1,5 @@
 import * as discord from 'discord.js';
+import fetch from 'node-fetch';
 import {Script} from '../types';
 import {NodeVM, VMScript} from 'vm2';
 import Bot from './index';
@@ -75,6 +76,7 @@ export default class BotScript {
       client: new Proxy(this.client, clientTraps),
       command: (n: string, h: CommandHandler) => this.addCommand(n, h),
       exports: this.exports,
+      fetch,
       // I've set it so you can't import from an importable script to prevent circular deps. Fix later?
       // importScript: this.importable ? null : (name: string) => this.importScript(name) // TODO fix this ugly hack
     };
