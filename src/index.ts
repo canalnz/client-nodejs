@@ -1,19 +1,13 @@
 import Canal from './canal';
 import Bot from './bot';
-import {EventEmitter} from 'events';
-
-const CANAL_API_KEY = process.env.CANAL_API_KEY as string;
-
-if (!CANAL_API_KEY) throw new Error('An API key is required! Please set CANAL_API_KEY');
-
-function ready(emitter: EventEmitter) {
-  return new Promise((resolve) => emitter.once('ready', () => resolve()));
-}
+import {loadConfig} from './config';
 
 async function main() {
+  const config = await loadConfig();
+
   const canal = new Canal({
-    apiKey: CANAL_API_KEY,
-    gatewayUrl: process.env.GATEWAY_HOST
+    apiKey: config.apiKey,
+    gatewayUrl: config.gatewayUrl
   });
 
   const bot = new Bot(canal);
