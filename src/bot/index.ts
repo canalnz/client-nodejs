@@ -27,6 +27,7 @@ export default class Bot extends EventEmitter {
     this.canal.on('scriptRemove', (s) => this.removeScript(s));
   }
   public close() {
+    this.activeScripts.forEach((s) => s.shutdown());
     this.client.destroy();
   }
   public importScript(name: string) {
@@ -64,8 +65,8 @@ export default class Bot extends EventEmitter {
     this.stopScript(script.id as string);
   }
   private initialiseScripts() {
-    this.canal.debug('Bot', `🤞 Initializing with ${this.canal.autostartScripts.length} scripts`);
-    this.canal.autostartScripts.forEach((s) => this.runScript(s));
+    this.canal.debug('Bot', `🤞 Initializing with ${this.canal.scripts.length} scripts`);
+    this.canal.scripts.forEach((s) => this.runScript(s));
     this.canal.setState(clientStates.ONLINE);
   }
   private onMessage(message: discord.Message): void {

@@ -16,6 +16,16 @@ function EventHandler(event: EventName) {
   };
 }
 
+interface HasId {
+  id: string;
+}
+function matches(a: HasId[], b: HasId[]) {
+  // Checks every a is in b, and every b is in a
+  if (a.length !== b.length) return false;
+  // They're the same length, so we can just do a one way check.
+  return a.every((ai) => !!b.find((bi) => ai.id === bi.id));
+}
+
 export class Canal extends EventEmitter {
   public state: ConnectionState;
   public debugMode: boolean;
@@ -23,7 +33,7 @@ export class Canal extends EventEmitter {
   public apiKey: string | null = null;
   public gatewayUrl: string;
   public token: string | null = null;
-  public autostartScripts: Script[] = [];
+  public scripts: Script[] = [];
   protected connection: ConnectionManager;
 
   constructor(public opts: Config) {
@@ -65,27 +75,34 @@ export class Canal extends EventEmitter {
 
   @EventHandler('READY')
   public onReady(payload: ReadyPayload) {
-    this.state = connectionStates.READY;
-    this.token = payload.token;
-    this.autostartScripts = payload.scripts;
-    this.emit('ready');
+    if (
+      this.state !== connectionStates.READY || // If this is the initial connection
+      this.token !== payload.token ||
+      !matches(this.scripts, payload.scripts) // Or something changed
+    ) {
+      this.state = connectionStates.READY;
+      this.token = payload.token;
+      this.scripts = payload.scripts;
+      this.emit('ready');
+    }
+    // We reconnected, and nothing changed. For now, let's just pretend no interruption happened
   }
 
   @EventHandler('SCRIPT_CREATE')
   public async scriptCreate(script: Script) {
-    this.debug('Canal', `⚙️ Beep boop, it's time to run the script ${script.name}`);
+    this.debug('Canal', `⚙️ [+ ${script.id}] ${script.name} has been created`);
     this.emit('scriptCreate', script);
   }
 
   @EventHandler('SCRIPT_UPDATE')
   public async scriptUpdate(script: Partial<Script> & {id: string}) {
-    this.debug('Canal', `- [Script ${script.id}]: Script updated!`);
+    this.debug('Canal', `⚙️ [* ${script.id}] ${script.name} has been updated`);
     this.emit('scriptUpdate', script);
   }
 
   @EventHandler('SCRIPT_REMOVE')
   public async scriptRemove(script: Pick<Script, 'id'>) {
-    this.debug('Canal', `- [Script ${script.id}]: Script removed!`);
+    this.debug('Canal', `⚙️ [- ${script.id}] Script has been removed`);
     this.emit('scriptRemove', script);
   }
 
