@@ -2,14 +2,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {endpoints} from './canal/constants';
 
-interface Config {
+export interface Config {
   apiKey: string;
   gatewayUrl: string;
   debug: boolean;
+  dbPath: string;
 }
-const DEFAULTS = {
+const DEFAULTS: Partial<Config> = {
   gatewayUrl: endpoints.GATEWAY,
-  debug: false
+  debug: false,
+  dbPath: 'data/db.sqlite'
 };
 
 export async function loadConfig(): Promise<Config> {
@@ -33,7 +35,8 @@ export async function loadConfig(): Promise<Config> {
   const env = filter({
     gatewayUrl: process.env.CANAL_GATEWAY,
     apiKey: process.env.CANAL_API_KEY,
-    debug: process.env.DEBUG || process.env.CANAL_DEBUG
+    debug: process.env.DEBUG || process.env.CANAL_DEBUG,
+    dbPath: process.env.CANAL_DB_PATH
   });
 
   config = {
@@ -43,6 +46,7 @@ export async function loadConfig(): Promise<Config> {
   };
 
   if (!config.apiKey) throw new Error('An API key is required! Please set CANAL_API_KEY');
+  config.dbPath = path.resolve(config.dbPath);
 
   return config;
 }

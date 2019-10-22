@@ -9,14 +9,10 @@ export interface StorageAPI {
 }
 
 export default class Storage {
-  public static async connect(filename?: string) {
+  public static async connect(filename: string) {
     // Relative to CWD, so should be project root
-    filename = filename || path.resolve('data/db.sqlite');
     await Storage.checkFile(filename);
-    const db = await sqlite.open(filename, {
-      promise: Promise,
-      verbose: true
-    });
+    const db = await sqlite.open(filename, {promise: Promise});
     const storage = new this(db);
     await storage.checkDb();
     return storage;

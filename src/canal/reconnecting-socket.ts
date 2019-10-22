@@ -31,13 +31,13 @@ export default class ReconnectingSocket extends EventEmitter {
     this.ws.on('error', (err) => this.onError(err));
   }
 
-  // Only call when the connection is open to terminate it perm
+  // Only call when the connection is open to terminate it permanently
   public close(code: number, message: string) {
     this.canal.debug('RecSock', 'Forcing closed...', code, message);
     this.ws.close(code, message);
     this.end();
   }
-  // Mark the connection as sucessful and everything as ok
+  // Mark the connection as successful and everything as ok
   public didReady() {
     this.reconnectAttempts = 0;
   }
@@ -68,6 +68,7 @@ export default class ReconnectingSocket extends EventEmitter {
   }
 
   private startReconnect() {
+    this.state = connectionStates.RECONNECTING;
     const delay = this.backoffDuration * 2 ** this.reconnectAttempts;
     this.canal.debug('RecSock', 'Scheduling reconnect in', delay);
     this.reconnectAttempts++;
@@ -77,7 +78,6 @@ export default class ReconnectingSocket extends EventEmitter {
   private reconnect() {
     this.canal.debug('RecSock', 'Reconnecting!');
     this.reconnectTimer = null;
-    this.state = connectionStates.RECONNECTING;
     this.ws = new WebSocket(this.url);
     this.bindEventsToSocket();
   }

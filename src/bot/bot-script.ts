@@ -78,6 +78,7 @@ export default class BotScript {
       exports: this.exports,
       fetch,
       storage: this.bot.storage && this.bot.storage.api
+      // TODO perms
       // I've set it so you can't import from an importable script to prevent circular deps. Fix later?
       // importScript: this.importable ? null : (name: string) => this.importScript(name) // TODO fix this ugly hack
     };

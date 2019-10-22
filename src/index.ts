@@ -5,11 +5,7 @@ import {loadConfig} from './config';
 async function main() {
   const config = await loadConfig();
 
-  const canal = new Canal({
-    apiKey: config.apiKey,
-    gatewayUrl: config.gatewayUrl,
-    debug: config.debug
-  });
+  const canal = new Canal(config);
 
   const bot = new Bot(canal);
 
@@ -17,8 +13,14 @@ async function main() {
     canal.destroy();
     bot.close();
   };
-  process.on('exit', cleanup);
-  process.on('SIGINT', cleanup);
+  process.on('exit', () => {
+    canal.debug('Core', 'Process exiting!');
+    cleanup();
+  });
+  process.on('SIGINT', () => {
+    canal.debug('Core', 'SIGINT');
+    cleanup();
+  });
 }
 
 main();

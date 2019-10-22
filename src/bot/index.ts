@@ -6,15 +6,18 @@ import {clientStates} from '../canal/constants';
 import Storage from './storage';
 import BotScript from './bot-script';
 import Arguments, {ArgedMessage} from './arguments';
+import Internals from './internals';
 
 export default class Bot extends EventEmitter {
   public activeScripts: BotScript[] = [];
   public client: discord.Client;
   public storage: Storage | null = null;
   private importerCache: Map<string, any> = new Map();
+  private internals: Internals;
 
   constructor(public canal: Canal) {
     super();
+    this.internals = new Internals(this);
     this.client = new discord.Client();
     this.client.on('message', (m) => this.onMessage(m));
     this.client.on('ready', () => this.initialiseScripts());
@@ -34,7 +37,7 @@ export default class Bot extends EventEmitter {
     }
   }
   private async setup() {
-    this.storage = await Storage.connect();
+    this.storage = await Storage.connect(this.canal.opts.dbPath);
     await this.client.login(this.canal.token as string);
   }
   private runScript(scriptData: BotScript | Script): BotScript {
@@ -75,6 +78,7 @@ export default class Bot extends EventEmitter {
     (rawMessage as ArgedMessage).args = Arguments.parse(rawMessage);
     const message: ArgedMessage = rawMessage as ArgedMessage;
     this.canal.debug('Bot', `Received command: ${message.args.command}`);
+    this.internals.dispatch(message);
     this.activeScripts.forEach((script) => {
       script.commands.filter((c) => c.name === message.args.command).forEach((c) => c.handler(message));
     });

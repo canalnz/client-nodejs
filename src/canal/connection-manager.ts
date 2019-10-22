@@ -64,7 +64,7 @@ export class ConnectionManager extends EventEmitter {
   }
   private onMessage(raw: WebSocket.Data) {
     const [eventName, payload] = this.deserialize(raw);
-    this.canal.debug('ConnMan', '< ' + eventName);
+    this.canal.debug('ConnMan', '<  ' + eventName);
     if (eventName === 'HELLO') this.onHello(payload);
     else {
       if (eventName === 'READY') this.onReady(payload);
@@ -106,7 +106,7 @@ export class ConnectionManager extends EventEmitter {
   }
   private _send(message: Message) {
     if (!this.ws) throw new Error('This shouldn\'t happen!');
-    if (message[0] !== 'HEARTBEAT') this.canal.debug('ConnMan', '> ' + message[0]);
+    if (message[0] !== 'HEARTBEAT') this.canal.debug('ConnMan', '>  ' + message[0]);
     this.ws.send(this.serialize(message));
   }
   private serialize(d: Message): string {

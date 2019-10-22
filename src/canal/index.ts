@@ -2,12 +2,7 @@ import {EventEmitter} from 'events';
 import {Script} from '../types';
 import {ConnectionManager} from './connection-manager';
 import {ClientState, ConnectionState, connectionStates, endpoints, EventName, messages, ScriptState} from './constants';
-
-interface CanalClientOpts {
-  apiKey: string;
-  gatewayUrl: string;
-  debug: boolean;
-}
+import { Config } from '../config';
 
 interface ReadyPayload {
   token: string;
@@ -31,7 +26,7 @@ export class Canal extends EventEmitter {
   public autostartScripts: Script[] = [];
   protected connection: ConnectionManager;
 
-  constructor(opts: CanalClientOpts) {
+  constructor(public opts: Config) {
     super();
     this.apiKey = opts.apiKey;
     this.gatewayUrl = opts.gatewayUrl;
