@@ -35,7 +35,7 @@ export default class ReconnectingSocket extends EventEmitter {
   public close(code: number, message: string) {
     this.canal.debug('RecSock', 'Forcing closed...', code, message);
     this.ws.close(code, message);
-    this.end();
+    this.end(code);
   }
   // Mark the connection as successful and everything as ok
   public didReady() {
@@ -68,6 +68,8 @@ export default class ReconnectingSocket extends EventEmitter {
   }
 
   private startReconnect() {
+    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Not reconnecting: dead');
+    if (this.state === connectionStates.RECONNECTING) return this.canal.debug('RecSock', 'startReconnect called too many times!');
     this.state = connectionStates.RECONNECTING;
     const delay = this.backoffDuration * 2 ** this.reconnectAttempts;
     this.canal.debug('RecSock', 'Scheduling reconnect in', delay);
@@ -83,6 +85,7 @@ export default class ReconnectingSocket extends EventEmitter {
   }
 
   private isCodeFatal(code: number) {
+    this.canal.debug('RecSock', 'Checking if code fatal (we use includes here)');
     // If we're giving up, or this is the first connection, or it's not a recoverable code
     return this.reconnectAttempts >= this.maxReconnectAttempts ||
       this.state === connectionStates.CONNECTING ||

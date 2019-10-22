@@ -70,6 +70,7 @@ export default class Internals {
     usage: '[command]'
   })
   public async help(message: ArgedMessage): Promise<void> {
+    this.bot.canal.debug('Internals', 'Help called. We use includes here');
     const command = message.args[0];
     const info = this.commands.find((c) => c.triggers.includes(command));
     if (command && !info) {

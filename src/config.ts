@@ -41,8 +41,8 @@ export async function loadConfig(): Promise<Config> {
 
   config = {
     ...DEFAULTS,
-    ...env,
-    ...config // Config file takes precedence
+    ...config,
+    ...env // env takes precedence
   };
 
   if (!config.apiKey) throw new Error('An API key is required! Please set CANAL_API_KEY');
