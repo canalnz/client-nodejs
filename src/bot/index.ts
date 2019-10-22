@@ -14,6 +14,7 @@ export default class Bot extends EventEmitter {
   public storage: Storage | null = null;
   private importerCache: Map<string, any> = new Map();
   private internals: Internals;
+  private hasInitialised: boolean = false;
 
   constructor(public canal: Canal) {
     super();
@@ -29,6 +30,7 @@ export default class Bot extends EventEmitter {
   public close() {
     this.activeScripts.forEach((s) => s.shutdown());
     this.client.destroy();
+    this.hasInitialised = false;
   }
   public importScript(name: string) {
     if (this.importerCache.has(name)) {
@@ -38,6 +40,8 @@ export default class Bot extends EventEmitter {
     }
   }
   private async setup() {
+    if (this.hasInitialised) this.close(); // If we are currently connected, recycle and connect again
+    this.hasInitialised = true; // Leave this at the top to avoid race conditions
     this.storage = await Storage.connect(this.canal.opts.dbPath);
     await this.client.login(this.canal.token as string);
   }
