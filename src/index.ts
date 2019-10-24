@@ -10,8 +10,8 @@ async function main() {
   const bot = new Bot(canal);
 
   const cleanup = () => {
-    canal.destroy();
     bot.close();
+    canal.destroy();
   };
   process.on('exit', () => {
     canal.debug('Core', 'Process exiting!');

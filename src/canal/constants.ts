@@ -43,10 +43,11 @@ export const events: Enum<EventName> = {
   SCRIPT_REMOVE: 'SCRIPT_REMOVE'
 };
 
-export type ConnectionState = 'CONNECTING' | 'RECONNECTING' | 'READY' | 'DEAD';
+export type ConnectionState = 'CONNECTING' | 'RECONNECTING' | 'READY' | 'ENDING' | 'DEAD';
 export const connectionStates: Enum<ConnectionState> = {
   CONNECTING: 'CONNECTING',
   RECONNECTING: 'RECONNECTING',
   READY: 'READY',
+  ENDING: 'ENDING',
   DEAD: 'DEAD'
 };

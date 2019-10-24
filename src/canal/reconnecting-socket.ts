@@ -34,6 +34,7 @@ export default class ReconnectingSocket extends EventEmitter {
   // Only call when the connection is open to terminate it permanently
   public close(code: number, message: string) {
     this.canal.debug('RecSock', 'Forcing closed...', code, message);
+    this.state = connectionStates.ENDING;
     this.ws.close(code, message);
     this.end(code);
   }
@@ -48,34 +49,37 @@ export default class ReconnectingSocket extends EventEmitter {
   }
   private onClose(code: number, message: string) {
     this.canal.debug('RecSock', 'Remote host has closed websocket', code, message);
-    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Connection is already closed');
-    if (this.isCodeFatal(code)) {
-      this.canal.debug('RecSock', 'Fatal connection end, shutting down...');
-      this.end(code);
-    } else {
+    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Closing after dead. Assuming we\'ve already cleaned up');
+    if (this.isCodeRecoverable(code)) {
       this.startReconnect();
+    } else {
+      this.canal.debug('RecSock', 'Fatal connection end, shutting down...');
+      this.state = connectionStates.ENDING;
+      this.end(code);
     }
   }
-
   private onError(e: Error) {
     this.canal.debug('RecSock', 'Socket error!', e);
-    if (this.isErrorFatal(e)) {
-      this.canal.debug('RecSock', 'Socket error is fatal, shutting down...');
-      this.end();
-    } else {
+    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Error after connection is dead. Ignoring.');
+    if (this.isErrorRecoverable(e)) {
       this.startReconnect();
+    } else {
+      this.canal.debug('RecSock', 'Socket error is fatal, shutting down...');
+      this.state = connectionStates.ENDING;
+      this.end();
     }
   }
 
   private startReconnect() {
-    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Not reconnecting: dead');
-    if (this.state === connectionStates.RECONNECTING) return this.canal.debug('RecSock', 'startReconnect called too many times!');
+    if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'Refusing to reconnect: dead');
+    if (this.state === connectionStates.ENDING) return this.canal.debug('RecSock', 'Refusing to reconnect: currently ending');
+    if (this.reconnectTimer) return this.canal.debug('RecSock', 'Refusing to reconnect: already reconnecting');
     this.state = connectionStates.RECONNECTING;
     const delay = this.backoffDuration * 2 ** this.reconnectAttempts;
     this.canal.debug('RecSock', 'Scheduling reconnect in', delay);
     this.reconnectAttempts++;
-    this.emit('reconnecting');
     this.reconnectTimer = setTimeout(() => this.reconnect(), delay);
+    this.emit('reconnecting');
   }
   private reconnect() {
     this.canal.debug('RecSock', 'Reconnecting!');
@@ -84,18 +88,14 @@ export default class ReconnectingSocket extends EventEmitter {
     this.bindEventsToSocket();
   }
 
-  private isCodeFatal(code: number) {
-    this.canal.debug('RecSock', 'Checking if code fatal (we use includes here)');
-    // If we're giving up, or this is the first connection, or it's not a recoverable code
-    return this.reconnectAttempts >= this.maxReconnectAttempts ||
-      this.state === connectionStates.CONNECTING ||
-      !recoverableCodes.includes(code);
+  private isCodeRecoverable(code: number) {
+    return this.reconnectAttempts < this.maxReconnectAttempts // If we aren't giving up
+      || this.state === 'READY' || this.state === 'RECONNECTING'
+      || recoverableCodes.includes(code); // If we are in a healthy state, or retrying
   }
-  private isErrorFatal(e: Error) {
-    // TODO what errors should be fatal?
-    // If we're giving up, or this is the first connection
-    return this.reconnectAttempts >= this.maxReconnectAttempts ||
-      this.state === connectionStates.CONNECTING;
+  private isErrorRecoverable(e: Error) {
+    return this.reconnectAttempts < this.maxReconnectAttempts // If we aren't giving up
+      || this.state === 'READY' || this.state === 'RECONNECTING'; // If we are in a healthy state, or retrying
   }
 
   private end(reason?: Error | number) {
@@ -104,15 +104,16 @@ export default class ReconnectingSocket extends EventEmitter {
       this.ws.close(4000, 'errored, but socket was still open');
     }
     if (this.state === connectionStates.DEAD) return this.canal.debug('RecSock', 'end has been called too many times!');
-    this.state = connectionStates.DEAD;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+    this.state = connectionStates.DEAD;
     this.canal.debug('RecSock', 'RecSock has cleaned up, emitting end');
     this.emit('end', reason);
   }
   // tslint:disable-next-line:member-ordering
   public send(d: WebSocket.Data) {
-    if (this.ws) this.ws.send(d);
+    if (this.ws.readyState === this.ws.OPEN) this.ws.send(d);
+    else this.canal.debug('RecSock', 'Trying to send data to a unready connection', d.toString());
   }
   private onMessage(m: WebSocket.Data) {
     this.emit('message', m);

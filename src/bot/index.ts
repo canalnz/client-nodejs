@@ -69,7 +69,7 @@ export default class Bot extends EventEmitter {
     this.stopScript(script.id as string);
   }
   private initialiseScripts() {
-    this.canal.debug('Bot', `🤞 Initializing with ${this.canal.scripts.length} scripts`);
+    this.canal.debug('Bot', `🤞 Initializing with ${this.canal.scripts.size} scripts`);
     this.canal.scripts.forEach((s) => this.runScript(s));
     this.canal.setState(clientStates.ONLINE);
   }

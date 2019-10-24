@@ -19,7 +19,7 @@ export class ConnectionManager extends EventEmitter {
   private readonly ws: ReconnectingSocket;
   // Heartbeat
   private heartbeatTimer: NodeJS.Timer | null = null;
-  private heartbeatInterval: number | null = null;
+  private heartbeatRate: number | null = null;
   private messageQueue: Message[] = [];
 
   constructor(private canal: Canal) {
@@ -33,24 +33,29 @@ export class ConnectionManager extends EventEmitter {
   }
 
   public send(message?: Message) {
-    if (this.state !== connectionStates.READY && message) return this.messageQueue.push(message);
+    if (this.state !== connectionStates.READY && message) {
+      this.canal.debug('ConnMan', 'Q  Queued message', message[0]);
+      return this.messageQueue.push(message);
+    }
     if (message) this._send(message);
     if (this.messageQueue.length) {
       this.send(this.messageQueue.shift());
     }
   }
   public close(code?: number, message?: string) {
+    if (this.state === connectionStates.DEAD) return this.canal.debug('ConnMan', 'Refusing to close: already dead');
     this.canal.debug('ConnMan', 'Forcing client closed!', code, message);
+    this.state = connectionStates.ENDING;
     this.ws.close(code || 1000, message || 'Goodbye');
-    // this.state = connectionStates.DEAD;
-    // this.cleanup(code);
+    // Close will bubble back up in form of end/error event
   }
 
   private onOpen() {
-    // Stub
+    // We don't need to do anything when the connection opens. Server sends data first
   }
   private onReconnecting() {
     this.state = connectionStates.RECONNECTING;
+    this.stopHeartbeat();
   }
   private onHello({heartbeat}: HelloPayload) {
     this.setupHeartbeat(heartbeat);
@@ -72,18 +77,25 @@ export class ConnectionManager extends EventEmitter {
     }
   }
   private onEnd(reason?: Error | number) {
-    this.canal.debug('ConnMan', 'RecSock has ended! ConnMan is currently', this.state);
-    if (this.state === connectionStates.DEAD) this.canal.debug('ConnMan', 'RecSock ended, but we\'re cleaning up elsewhere');
-    else this.cleanup(reason);
+    if (this.state === connectionStates.DEAD) this.canal.debug('ConnMan', 'RecSock ended, not cleaning up as ConnMan is DEAD');
+    else {
+      this.canal.debug('ConnMan', 'RecSock has ended, cleaning up. ConnMan is currently', this.state);
+      this.state = connectionStates.ENDING;
+      this.cleanup(reason);
+    }
   }
 
   // Heartbeating
   private setupHeartbeat(interval: number) {
-    this.heartbeatInterval = interval;
+    this.heartbeatRate = interval;
     this.heartbeatTimer = setInterval(() => this.doHeartbeat(), interval);
   }
   private doHeartbeat() {
-    this._send(['HEARTBEAT']);
+    if (this.state === connectionStates.READY) this._send(['HEARTBEAT']);
+  }
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   }
 
   // Utils
@@ -98,14 +110,16 @@ export class ConnectionManager extends EventEmitter {
   private cleanup(reason?: Error | number) {
     this.canal.debug('ConnMan', 'Cleaning up...', reason);
     if (this.state === connectionStates.DEAD) return this.canal.debug('ConnMan', 'Cleanup called too many times!');
+    if (this.state !== connectionStates.ENDING) this.canal.debug('ConnMan', 'We\'re cleaning up, but not ending!');
+
     this.state = connectionStates.DEAD;
     if (this.messageQueue.length) this.messageQueue = [];
-    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.stopHeartbeat();
+
     this.canal.debug('ConnMan', 'ConnMan has cleaned up, emitting end');
     this.emit('end', reason);
   }
   private _send(message: Message) {
-    if (!this.ws) throw new Error('This shouldn\'t happen!');
     if (message[0] !== 'HEARTBEAT') this.canal.debug('ConnMan', '>  ' + message[0]);
     this.ws.send(this.serialize(message));
   }
@@ -113,6 +127,11 @@ export class ConnectionManager extends EventEmitter {
     return JSON.stringify(d);
   }
   private deserialize(data: WebSocket.Data): Message {
-    return JSON.parse(data.toString('utf8'));
+    try {
+      return JSON.parse(data.toString('utf8'));
+    } catch (e) {
+      this.canal.debug('ConnMan', 'Failed to deserialize frame:', data.toString());
+      throw e;
+    }
   }
 }

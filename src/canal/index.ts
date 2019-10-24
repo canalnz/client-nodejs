@@ -33,7 +33,7 @@ export class Canal extends EventEmitter {
   public apiKey: string | null = null;
   public gatewayUrl: string;
   public token: string | null = null;
-  public scripts: Script[] = [];
+  public scripts: Map<string, Script> = new Map();
   protected connection: ConnectionManager;
 
   constructor(public opts: Config) {
@@ -63,7 +63,7 @@ export class Canal extends EventEmitter {
     this.connection.send([messages.CLIENT_STATUS_UPDATE, { state, error }]);
   }
   public setScriptState(scriptId: string, state: ScriptState) {
-    this.connection.send([messages.SCRIPT_STATUS_UPDATE, {state, script: scriptId}]);
+    this.connection.send([messages.SCRIPT_STATUS_UPDATE, {state, id: scriptId}]);
   }
 
   public destroy() {
@@ -78,11 +78,11 @@ export class Canal extends EventEmitter {
     if (
       this.state !== connectionStates.READY || // If this is the initial connection
       this.token !== payload.token ||
-      !matches(this.scripts, payload.scripts) // Or something changed
+      !matches(Array.from(this.scripts.values()), payload.scripts) // Or something changed
     ) {
       this.state = connectionStates.READY;
       this.token = payload.token;
-      this.scripts = payload.scripts;
+      payload.scripts.forEach((s) => this.scripts.set(s.id, s));
       this.emit('ready');
     }
     // We reconnected, and nothing changed. For now, let's just pretend no interruption happened
@@ -91,18 +91,25 @@ export class Canal extends EventEmitter {
   @EventHandler('SCRIPT_CREATE')
   public async scriptCreate(script: Script) {
     this.debug('Canal', `⚙️ [+ ${script.id}] ${script.name} has been created`);
+    this.scripts.set(script.id, script);
     this.emit('scriptCreate', script);
   }
 
   @EventHandler('SCRIPT_UPDATE')
   public async scriptUpdate(script: Partial<Script> & {id: string}) {
-    this.debug('Canal', `⚙️ [* ${script.id}] ${script.name} has been updated`);
-    this.emit('scriptUpdate', script);
+    const updatedScript = { // Overwrite changed fields in the old script
+      ...this.scripts.get(script.id),
+      ...filter(script) as Script // Cast is not safe, but this is the easiest way to type it, and works out ok
+    };
+    this.debug('Canal', `⚙️ [* ${script.id}] ${updatedScript.name} has been updated`);
+    this.scripts.set(script.id, updatedScript);
+    this.emit('scriptUpdate', updatedScript);
   }
 
   @EventHandler('SCRIPT_REMOVE')
   public async scriptRemove(script: Pick<Script, 'id'>) {
     this.debug('Canal', `⚙️ [- ${script.id}] Script has been removed`);
+    this.scripts.delete(script.id);
     this.emit('scriptRemove', script);
   }
 
@@ -120,3 +127,9 @@ export class Canal extends EventEmitter {
 }
 
 export default Canal;
+
+// Removes undefined properties, meaning they won't override in a ...spread
+function filter(obj: {[prop: string]: any}) {
+  Object.keys(obj).forEach((k) => obj[k] === undefined && delete obj[k]);
+  return obj;
+}
