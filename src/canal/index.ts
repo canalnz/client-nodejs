@@ -1,7 +1,11 @@
 import {EventEmitter} from 'events';
 import {Script} from '../types';
 import {ConnectionManager} from './connection-manager';
-import {ClientState, ConnectionState, connectionStates, endpoints, EventName, messages, ScriptState} from './constants';
+import {
+  ClientState, clientStates,
+  ConnectionState, connectionStates,
+  EventName, messages, ScriptState
+} from './constants';
 import { Config } from '../config';
 
 interface ReadyPayload {
@@ -84,8 +88,11 @@ export class Canal extends EventEmitter {
       this.token = payload.token;
       payload.scripts.forEach((s) => this.scripts.set(s.id, s));
       this.emit('ready');
+    } else {
+      // We reconnected, and nothing changed. For now, let's just pretend no interruption happened
+      // We still need to set the state as online, because it resets to STARTUP every connection
+      this.setState(clientStates.ONLINE);
     }
-    // We reconnected, and nothing changed. For now, let's just pretend no interruption happened
   }
 
   @EventHandler('SCRIPT_CREATE')
